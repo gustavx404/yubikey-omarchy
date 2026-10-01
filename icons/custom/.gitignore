@@ -1,0 +1,3 @@
+# Imported icon packs are local user data, not plugin source files.
+*
+!.gitignore
