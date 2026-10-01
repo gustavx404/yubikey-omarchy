@@ -524,24 +524,24 @@ Panel {
                 Repeater {
                   model: keyGroup.accounts || []
 
-                  delegate: Button {
+                  delegate: Item {
                     id: accountButton
                     required property var modelData
                     Layout.fillWidth: true
                     Layout.preferredHeight: modelData.type === "HOTP" ? Style.space(44) : (modelData.touchRequired ? Style.space(40) : Style.space(32))
-                    enabled: !root.requestBusy
-                    horizontalPadding: Style.space(8)
-                    verticalPadding: Style.space(4)
-                    onClicked: root.copyAccount(keyGroup.keyId, modelData)
                     Accessible.name: "Copy " + (modelData.issuer ? modelData.issuer + " " : "") + modelData.name
 
-                    background: Rectangle {
-                      color: accountButton.down ? Style.pressedFill : (accountButton.hovered ? Style.hoverFill : "transparent")
-                      border.color: accountButton.hovered ? Style.hoverBorderColor : Color.popups.border
+                    Rectangle {
+                      anchors.fill: parent
+                      color: accountMouse.pressed ? Style.pressedFill : (accountMouse.containsMouse ? Style.hoverFill : "transparent")
+                      border.color: accountMouse.containsMouse ? Style.hoverBorderColor : Color.popups.border
                       border.width: Style.normalBorderWidth
                     }
 
-                    contentItem: RowLayout {
+                    RowLayout {
+                      anchors.fill: parent
+                      anchors.leftMargin: Style.space(8)
+                      anchors.rightMargin: Style.space(8)
                       spacing: Style.space(8)
 
                       ThemedIcon {
@@ -601,6 +601,15 @@ Panel {
                           font.pixelSize: Style.font.caption
                         }
                       }
+                    }
+
+                    MouseArea {
+                      id: accountMouse
+                      anchors.fill: parent
+                      enabled: !root.requestBusy
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.copyAccount(keyGroup.keyId, accountButton.modelData)
                     }
                   }
                 }
