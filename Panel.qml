@@ -671,9 +671,10 @@ Panel {
                   font.pixelSize: Style.font.caption
                 }
                 ComboBox {
+                  id: timeoutPicker
                   model: root.clearTimeouts.map(function(value) { return root.timeoutLabel(value) })
                   currentIndex: Math.max(0, root.clearTimeouts.indexOf(root.clearTimeoutSeconds))
-                  onActivated: function(index) { root.saveSetting("clipboardClearSeconds", root.clearTimeouts[index]) }
+                  onActivated: root.saveSetting("clipboardClearSeconds", root.clearTimeouts[timeoutPicker.currentIndex])
                   Accessible.name: "Clear copied code after"
                 }
               }
