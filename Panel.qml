@@ -378,6 +378,7 @@ Panel {
         source: Qt.resolvedUrl("icons/yubikey.svg")
         tint: root.foreground
       }
+    }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
     }
@@ -791,5 +792,4 @@ Panel {
       }
     }
   }
-}
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "gustavx404.yubikey",
   "name": "YubiKey OATH",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": "gustavx404",
   "license": "MIT",
   "description": "Copy OATH TOTP and HOTP codes from connected YubiKeys.",
