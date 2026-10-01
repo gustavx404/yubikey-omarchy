@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Widgets
 import qs.Commons
 import qs.Ui
 
@@ -23,6 +25,7 @@ Panel {
   property var activeRequestProcess: null
   property string activeRequest: ""
   property bool requestBusy: false
+  property bool settingsOpen: false
   property string lastInventorySignature: ""
   property bool missingDependency: false
   property var clipboardOwner: null
@@ -40,6 +43,30 @@ Panel {
     var total = 0
     for (var i = 0; i < connectedDevices.length; i++) total += Number(connectedDevices[i].count || 0)
     return total
+  }
+
+  component ThemedIcon: Item {
+    id: themedIcon
+    property url source
+    property color tint: Color.foreground
+    implicitWidth: Style.font.icon
+    implicitHeight: Style.font.icon
+
+    IconImage {
+      id: sourceIcon
+      anchors.fill: parent
+      source: themedIcon.source
+      visible: false
+      layer.enabled: true
+    }
+
+    MultiEffect {
+      anchors.fill: parent
+      source: sourceIcon
+      autoPaddingEnabled: false
+      colorization: 1.0
+      colorizationColor: themedIcon.tint
+    }
   }
 
   function saveSetting(name, value) {
@@ -256,6 +283,7 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
+      settingsOpen = false
       statusText = ""
       refreshAccounts()
     } else {
@@ -345,30 +373,11 @@ Panel {
     bar: root.bar
     visible: root.connectedKeyCount > 0
     iconComponent: Component {
-      Item {
-        Rectangle {
-          anchors.centerIn: parent
-          width: Style.space(13)
-          height: Style.space(8)
-          radius: Style.space(2)
-          color: root.bar ? root.bar.foreground : Color.foreground
-        }
-        Rectangle {
-          anchors.horizontalCenter: parent.horizontalCenter
-          anchors.top: parent.verticalCenter
-          width: Style.space(6)
-          height: Style.space(4)
-          color: root.bar ? root.bar.foreground : Color.foreground
-        }
-        Rectangle {
-          anchors.centerIn: parent
-          width: Style.space(2)
-          height: Style.space(2)
-          radius: width / 2
-          color: root.bar ? root.bar.background : Color.background
-        }
+      ThemedIcon {
+        anchors.fill: parent
+        source: Qt.resolvedUrl("icons/yubikey.svg")
+        tint: root.foreground
       }
-    }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
     }
@@ -381,7 +390,7 @@ Panel {
     bar: root.bar
     open: root.opened && root.connectedKeyCount > 0
     focusTarget: null
-    contentWidth: panel.fittedContentWidth(Style.space(430))
+    contentWidth: panel.fittedContentWidth(Style.space(390))
     contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight, Style.space(560))
 
     ColumnLayout {
@@ -393,7 +402,7 @@ Panel {
         Layout.fillWidth: true
 
         Text {
-          text: "YubiKey OATH"
+          text: root.settingsOpen ? "Settings" : "YubiKey OATH"
           color: root.bar ? root.bar.foreground : Color.foreground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.heading
@@ -401,18 +410,21 @@ Panel {
           Layout.fillWidth: true
         }
 
-        ComboBox {
-          id: timeoutPicker
-          model: root.clearTimeouts.map(function(value) { return root.timeoutLabel(value) })
-          currentIndex: Math.max(0, root.clearTimeouts.indexOf(root.clearTimeoutSeconds))
-          onActivated: function(index) { root.saveSetting("clipboardClearSeconds", root.clearTimeouts[index]) }
-          Accessible.name: "Clear copied code after"
+        ToolButton {
+          contentItem: ThemedIcon {
+            source: Qt.resolvedUrl(root.settingsOpen ? "icons/back.svg" : "icons/settings.svg")
+            tint: root.foreground
+            width: Style.font.icon
+            height: Style.font.icon
+          }
+          Accessible.name: root.settingsOpen ? "Back to accounts" : "Settings"
+          onClicked: root.settingsOpen = !root.settingsOpen
         }
       }
 
       Text {
         Layout.fillWidth: true
-        visible: root.statusText !== ""
+        visible: !root.settingsOpen && root.statusText !== ""
         text: root.statusText
         color: root.mutedForeground
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -422,6 +434,7 @@ Panel {
 
       ScrollView {
         id: accountScrollView
+        visible: !root.settingsOpen
         Layout.fillWidth: true
         Layout.fillHeight: true
         clip: true
@@ -440,7 +453,7 @@ Panel {
               required property var modelData
               property var keyGroup: modelData
               Layout.fillWidth: true
-              property real cardInset: Style.space(8)
+              property real cardInset: Style.space(6)
               padding: cardInset
               color: Color.popups.background
               borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Style.normalBorderWidth)
@@ -451,7 +464,7 @@ Panel {
                 x: keyCard.contentLeftInset
                 y: keyCard.contentTopInset
                 width: keyCard.width - keyCard.contentLeftInset - keyCard.contentRightInset
-                spacing: Style.space(5)
+                spacing: Style.space(4)
 
                 RowLayout {
                   Layout.fillWidth: true
@@ -466,26 +479,6 @@ Panel {
                     Layout.fillWidth: true
                   }
 
-                  ToolButton {
-                    text: aliasEditor.visible ? "Done" : "Rename"
-                    onClicked: {
-                      if (aliasEditor.visible) root.saveAlias(keyGroup.keyId, aliasEditor.text)
-                      aliasEditor.visible = !aliasEditor.visible
-                    }
-                    Accessible.name: "Set an optional alias for " + root.keyTitle(keyGroup)
-                  }
-                }
-
-                TextField {
-                  id: aliasEditor
-                  Layout.fillWidth: true
-                  visible: false
-                  placeholderText: "Optional key alias"
-                  text: String(root.aliases[keyGroup.keyId] || "")
-                  onAccepted: {
-                    root.saveAlias(keyGroup.keyId, text)
-                    visible = false
-                  }
                 }
 
                 RowLayout {
@@ -534,7 +527,7 @@ Panel {
                     id: accountButton
                     required property var modelData
                     Layout.fillWidth: true
-                    Layout.preferredHeight: modelData.type === "HOTP" ? Style.space(48) : (modelData.issuer || modelData.touchRequired ? Style.space(42) : Style.space(34))
+                    Layout.preferredHeight: modelData.type === "HOTP" ? Style.space(44) : (modelData.touchRequired ? Style.space(40) : Style.space(32))
                     enabled: !root.requestBusy
                     horizontalPadding: Style.space(8)
                     verticalPadding: Style.space(4)
@@ -550,13 +543,22 @@ Panel {
                     contentItem: RowLayout {
                       spacing: Style.space(8)
 
+                      ThemedIcon {
+                        source: Qt.resolvedUrl(modelData.type === "HOTP" ? "icons/hotp.svg" : "icons/totp.svg")
+                        tint: Color.foreground
+                        implicitWidth: Style.space(18)
+                        implicitHeight: Style.space(18)
+                        Layout.preferredWidth: Style.space(18)
+                        Layout.preferredHeight: Style.space(18)
+                      }
+
                       ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
 
                         Text {
                           Layout.fillWidth: true
-                          text: modelData.name
+                          text: (modelData.issuer ? modelData.issuer + " · " : "") + modelData.name
                           color: Color.foreground
                           font.family: root.bar ? root.bar.fontFamily : Style.font.family
                           font.pixelSize: Style.font.bodySmall
@@ -566,8 +568,8 @@ Panel {
 
                         Text {
                           Layout.fillWidth: true
-                          visible: modelData.issuer !== "" || modelData.touchRequired
-                          text: (modelData.issuer || "") + (modelData.touchRequired ? (modelData.issuer ? " · touch required" : "Touch required") : "")
+                          visible: modelData.touchRequired
+                          text: "Touch required"
                           color: root.mutedForeground
                           font.family: root.bar ? root.bar.fontFamily : Style.font.family
                           font.pixelSize: Style.font.caption
@@ -621,6 +623,168 @@ Panel {
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             wrapMode: Text.Wrap
+          }
+        }
+      }
+
+      ScrollView {
+        visible: root.settingsOpen
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+        ColumnLayout {
+          width: parent.width
+          spacing: Style.space(8)
+
+          BorderSurface {
+            Layout.fillWidth: true
+            padding: Style.space(8)
+            color: Color.popups.background
+            borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Style.normalBorderWidth)
+            Layout.preferredHeight: clipboardSettings.implicitHeight + contentTopInset + contentBottomInset
+
+            ColumnLayout {
+              id: clipboardSettings
+              x: parent.contentLeftInset
+              y: parent.contentTopInset
+              width: parent.width - parent.contentLeftInset - parent.contentRightInset
+              spacing: Style.space(5)
+
+              Text {
+                text: "Clipboard"
+                color: Color.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+                font.weight: Font.DemiBold
+              }
+
+              RowLayout {
+                Layout.fillWidth: true
+                Text {
+                  Layout.fillWidth: true
+                  text: "Clear copied code after"
+                  color: root.mutedForeground
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                ComboBox {
+                  model: root.clearTimeouts.map(function(value) { return root.timeoutLabel(value) })
+                  currentIndex: Math.max(0, root.clearTimeouts.indexOf(root.clearTimeoutSeconds))
+                  onActivated: function(index) { root.saveSetting("clipboardClearSeconds", root.clearTimeouts[index]) }
+                  Accessible.name: "Clear copied code after"
+                }
+              }
+
+              Text {
+                Layout.fillWidth: true
+                text: "Codes are marked sensitive. TOTP codes clear at expiry when sooner."
+                color: root.mutedForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+            }
+          }
+
+          BorderSurface {
+            Layout.fillWidth: true
+            padding: Style.space(8)
+            color: Color.popups.background
+            borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Style.normalBorderWidth)
+            Layout.preferredHeight: keySettings.implicitHeight + contentTopInset + contentBottomInset
+
+            ColumnLayout {
+              id: keySettings
+              x: parent.contentLeftInset
+              y: parent.contentTopInset
+              width: parent.width - parent.contentLeftInset - parent.contentRightInset
+              spacing: Style.space(5)
+
+              Text {
+                text: "YubiKeys"
+                color: Color.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+                font.weight: Font.DemiBold
+              }
+
+              Repeater {
+                model: root.keys
+                delegate: RowLayout {
+                  required property var modelData
+                  property var keyGroup: modelData
+                  Layout.fillWidth: true
+
+                  Text {
+                    Layout.fillWidth: true
+                    text: String(keyGroup.title || "YubiKey")
+                    color: root.mutedForeground
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                  }
+
+                  TextField {
+                    Layout.preferredWidth: Style.space(140)
+                    placeholderText: "Optional alias"
+                    text: String(root.aliases[keyGroup.keyId] || "")
+                    onEditingFinished: root.saveAlias(keyGroup.keyId, text)
+                    Accessible.name: "Alias for " + String(keyGroup.title || "YubiKey")
+                  }
+                }
+              }
+
+              Text {
+                visible: root.keys.length === 0
+                text: "Connect a YubiKey to configure its alias."
+                color: root.mutedForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+            }
+          }
+
+          BorderSurface {
+            Layout.fillWidth: true
+            padding: Style.space(8)
+            color: Color.popups.background
+            borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Style.normalBorderWidth)
+            Layout.preferredHeight: securitySettings.implicitHeight + contentTopInset + contentBottomInset
+
+            ColumnLayout {
+              id: securitySettings
+              x: parent.contentLeftInset
+              y: parent.contentTopInset
+              width: parent.width - parent.contentLeftInset - parent.contentRightInset
+              spacing: Style.space(4)
+
+              Text {
+                text: "Security"
+                color: Color.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+                font.weight: Font.DemiBold
+              }
+              Text {
+                Layout.fillWidth: true
+                text: "OATH passwords stay in memory while the connected-key inventory is unchanged."
+                color: root.mutedForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+              Text {
+                Layout.fillWidth: true
+                text: "HOTP copies advance the key counter. USB only; enrollment and NFC are not supported yet."
+                color: root.mutedForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+              }
+            }
           }
         }
       }
