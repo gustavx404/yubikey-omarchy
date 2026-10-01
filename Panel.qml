@@ -381,13 +381,13 @@ Panel {
     bar: root.bar
     open: root.opened && root.connectedKeyCount > 0
     focusTarget: null
-    contentWidth: panel.fittedContentWidth(Style.space(390))
+    contentWidth: panel.fittedContentWidth(Style.space(430))
     contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight, Style.space(560))
 
     ColumnLayout {
       id: contentColumn
       anchors.fill: parent
-      spacing: Style.space(10)
+      spacing: Style.space(8)
 
       RowLayout {
         Layout.fillWidth: true
@@ -421,119 +421,194 @@ Panel {
       }
 
       ScrollView {
+        id: accountScrollView
         Layout.fillWidth: true
         Layout.fillHeight: true
         clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
         ColumnLayout {
           width: parent.width
-          spacing: Style.space(8)
+          spacing: Style.space(6)
 
           Repeater {
             model: root.keys
 
-            delegate: ColumnLayout {
+            delegate: BorderSurface {
+              id: keyCard
               required property var modelData
               property var keyGroup: modelData
               Layout.fillWidth: true
-              spacing: Style.space(4)
+              property real cardInset: Style.space(8)
+              padding: cardInset
+              color: Color.popups.background
+              borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Style.normalBorderWidth)
+              Layout.preferredHeight: cardContent.implicitHeight + contentTopInset + contentBottomInset
 
-              RowLayout {
-                Layout.fillWidth: true
+              ColumnLayout {
+                id: cardContent
+                x: keyCard.contentLeftInset
+                y: keyCard.contentTopInset
+                width: keyCard.width - keyCard.contentLeftInset - keyCard.contentRightInset
+                spacing: Style.space(5)
+
+                RowLayout {
+                  Layout.fillWidth: true
+
+                  Text {
+                    text: root.keyTitle(keyGroup)
+                    color: root.bar ? root.bar.foreground : Color.foreground
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                  }
+
+                  ToolButton {
+                    text: aliasEditor.visible ? "Done" : "Rename"
+                    onClicked: {
+                      if (aliasEditor.visible) root.saveAlias(keyGroup.keyId, aliasEditor.text)
+                      aliasEditor.visible = !aliasEditor.visible
+                    }
+                    Accessible.name: "Set an optional alias for " + root.keyTitle(keyGroup)
+                  }
+                }
+
+                TextField {
+                  id: aliasEditor
+                  Layout.fillWidth: true
+                  visible: false
+                  placeholderText: "Optional key alias"
+                  text: String(root.aliases[keyGroup.keyId] || "")
+                  onAccepted: {
+                    root.saveAlias(keyGroup.keyId, text)
+                    visible = false
+                  }
+                }
+
+                RowLayout {
+                  visible: keyGroup.locked === true
+                  Layout.fillWidth: true
+                  TextField {
+                    id: oathPassword
+                    Layout.fillWidth: true
+                    echoMode: TextInput.Password
+                    placeholderText: "OATH password"
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+                    enabled: !root.requestBusy
+                    onAccepted: unlockButton.clicked()
+                  }
+                  Button {
+                    id: unlockButton
+                    text: "Unlock"
+                    enabled: oathPassword.text !== "" && !root.requestBusy
+                    onClicked: {
+                      root.unlockKey(keyGroup.keyId, oathPassword.text)
+                      oathPassword.text = ""
+                    }
+                  }
+                }
 
                 Text {
-                  text: root.keyTitle(keyGroup)
-                  color: root.bar ? root.bar.foreground : Color.foreground
+                  visible: keyGroup.error === "incorrect_password"
+                  text: "Password not accepted. Try again."
+                  color: root.urgentColor
                   font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                  font.pixelSize: Style.font.body
-                  font.weight: Font.DemiBold
-                  elide: Text.ElideRight
-                  Layout.fillWidth: true
+                  font.pixelSize: Style.font.caption
                 }
 
-                ToolButton {
-                  text: aliasEditor.visible ? "Done" : "Rename"
-                  onClicked: {
-                    if (aliasEditor.visible) root.saveAlias(keyGroup.keyId, aliasEditor.text)
-                    aliasEditor.visible = !aliasEditor.visible
+                Text {
+                  visible: keyGroup.error === "oath_unavailable"
+                  text: "OATH is unavailable on this key."
+                  color: root.mutedForeground
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+
+                Repeater {
+                  model: keyGroup.accounts || []
+
+                  delegate: Button {
+                    id: accountButton
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: modelData.type === "HOTP" ? Style.space(48) : (modelData.issuer || modelData.touchRequired ? Style.space(42) : Style.space(34))
+                    enabled: !root.requestBusy
+                    horizontalPadding: Style.space(8)
+                    verticalPadding: Style.space(4)
+                    onClicked: root.copyAccount(keyGroup.keyId, modelData)
+                    Accessible.name: "Copy " + (modelData.issuer ? modelData.issuer + " " : "") + modelData.name
+
+                    background: Rectangle {
+                      color: accountButton.down ? Style.pressedFill : (accountButton.hovered ? Style.hoverFill : "transparent")
+                      border.color: accountButton.hovered ? Style.hoverBorderColor : Color.popups.border
+                      border.width: Style.normalBorderWidth
+                    }
+
+                    contentItem: RowLayout {
+                      spacing: Style.space(8)
+
+                      ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        Text {
+                          Layout.fillWidth: true
+                          text: modelData.name
+                          color: Color.foreground
+                          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                          font.pixelSize: Style.font.bodySmall
+                          elide: Text.ElideRight
+                          horizontalAlignment: Text.AlignLeft
+                        }
+
+                        Text {
+                          Layout.fillWidth: true
+                          visible: modelData.issuer !== "" || modelData.touchRequired
+                          text: (modelData.issuer || "") + (modelData.touchRequired ? (modelData.issuer ? " · touch required" : "Touch required") : "")
+                          color: root.mutedForeground
+                          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                          font.pixelSize: Style.font.caption
+                          elide: Text.ElideRight
+                          horizontalAlignment: Text.AlignLeft
+                        }
+                      }
+
+                      ColumnLayout {
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                        spacing: 0
+
+                        Text {
+                          Layout.alignment: Qt.AlignRight
+                          text: modelData.type
+                          color: modelData.type === "HOTP" ? root.urgentColor : root.mutedForeground
+                          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                          font.pixelSize: Style.font.caption
+                          font.weight: Font.DemiBold
+                        }
+
+                        Text {
+                          visible: modelData.type === "HOTP"
+                          Layout.alignment: Qt.AlignRight
+                          text: "Counter advances"
+                          color: root.urgentColor
+                          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                          font.pixelSize: Style.font.caption
+                        }
+                      }
+                    }
                   }
-                  Accessible.name: "Set an optional alias for " + root.keyTitle(keyGroup)
                 }
-              }
 
-              TextField {
-                id: aliasEditor
-                Layout.fillWidth: true
-                visible: false
-                placeholderText: "Optional key alias"
-                text: String(root.aliases[keyGroup.keyId] || "")
-                onAccepted: {
-                  root.saveAlias(keyGroup.keyId, text)
-                  visible = false
+                Text {
+                  visible: (keyGroup.accounts || []).length === 0 && keyGroup.locked !== true && keyGroup.error === ""
+                  text: "No OATH accounts on this key."
+                  color: root.mutedForeground
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption
                 }
-              }
-
-              RowLayout {
-                visible: keyGroup.locked === true
-                Layout.fillWidth: true
-                TextField {
-                  id: oathPassword
-                  Layout.fillWidth: true
-                  echoMode: TextInput.Password
-                  placeholderText: "OATH password"
-                  inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
-                  enabled: !root.requestBusy
-                  onAccepted: unlockButton.clicked()
-                }
-                Button {
-                  id: unlockButton
-                  text: "Unlock"
-                  enabled: oathPassword.text !== "" && !root.requestBusy
-                  onClicked: {
-                    root.unlockKey(keyGroup.keyId, oathPassword.text)
-                    oathPassword.text = ""
-                  }
-                }
-              }
-
-              Text {
-                visible: keyGroup.error === "incorrect_password"
-                text: "Password not accepted. Try again."
-                color: root.urgentColor
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.caption
-              }
-
-              Text {
-                visible: keyGroup.error === "oath_unavailable"
-                text: "OATH is unavailable on this key."
-                color: root.mutedForeground
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.caption
-              }
-
-              Repeater {
-                model: keyGroup.accounts || []
-
-                delegate: Button {
-                  required property var modelData
-                  Layout.fillWidth: true
-                  enabled: !root.requestBusy
-                  text: (modelData.issuer ? modelData.issuer + " · " : "")
-                    + modelData.name
-                    + (modelData.type === "HOTP" ? "  ·  HOTP (advances counter)" : "")
-                    + (modelData.touchRequired ? "  ·  touch required" : "")
-                  horizontalPadding: Style.space(10)
-                  onClicked: root.copyAccount(keyGroup.keyId, modelData)
-                  Accessible.name: "Copy " + (modelData.issuer ? modelData.issuer + " " : "") + modelData.name
-                }
-              }
-
-              Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Qt.darker(Color.background, 1.12)
-                visible: index < root.keys.length - 1
               }
             }
           }
