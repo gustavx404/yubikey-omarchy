@@ -83,6 +83,23 @@ Panel {
     return alias !== "" ? alias : String(key.title || "YubiKey")
   }
 
+  function accountBrand(account) {
+    var label = String(account.issuer || account.name || "").toLowerCase()
+    if (label.indexOf("github") >= 0) return ["GH", "#f0f6fc"]
+    if (label.indexOf("google") >= 0) return ["G", "#4285f4"]
+    if (label.indexOf("discord") >= 0) return ["D", "#5865f2"]
+    if (label.indexOf("activision") >= 0) return ["A", "#ffffff"]
+    if (label.indexOf("desec") >= 0) return ["D", "#36c5a4"]
+    if (label.indexOf("ea") >= 0) return ["EA", "#ff4747"]
+    if (label.indexOf("epic") >= 0) return ["E", "#ffffff"]
+    if (label.indexOf("facebook") >= 0) return ["f", "#0866ff"]
+    if (label.indexOf("filen") >= 0) return ["F", "#55a8ff"]
+    if (label.indexOf("instagram") >= 0) return ["◎", "#e4405f"]
+    if (label.indexOf("hotmail") >= 0 || label.indexOf("outlook") >= 0 || label.indexOf("microsoft") >= 0)
+      return ["M", "#00a4ef"]
+    return ["", ""]
+  }
+
   function inventorySignature(devices) {
     return JSON.stringify(devices.map(function(device) {
       return [Number(device.productId), Number(device.count)]
@@ -544,13 +561,39 @@ Panel {
                       anchors.rightMargin: Style.space(8)
                       spacing: Style.space(8)
 
-                      ThemedIcon {
-                        source: Qt.resolvedUrl(modelData.type === "HOTP" ? "icons/hotp.svg" : "icons/totp.svg")
-                        tint: Color.foreground
+                      Item {
                         implicitWidth: Style.space(18)
                         implicitHeight: Style.space(18)
                         Layout.preferredWidth: Style.space(18)
                         Layout.preferredHeight: Style.space(18)
+
+                        readonly property var brand: root.accountBrand(modelData)
+
+                        Rectangle {
+                          anchors.fill: parent
+                          visible: parent.brand[0] !== ""
+                          radius: Style.space(4)
+                          color: parent.brand[1] === "#ffffff" ? "#263041" : Qt.darker(parent.brand[1], 2.6)
+                          border.color: Qt.darker(parent.brand[1], 1.7)
+                          border.width: 1
+                        }
+
+                        Text {
+                          anchors.centerIn: parent
+                          visible: parent.brand[0] !== ""
+                          text: parent.brand[0]
+                          color: parent.brand[1]
+                          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                          font.pixelSize: parent.brand[0].length > 1 ? Style.space(8) : Style.space(12)
+                          font.weight: Font.Bold
+                        }
+
+                        ThemedIcon {
+                          anchors.fill: parent
+                          visible: parent.brand[0] === ""
+                          source: Qt.resolvedUrl(modelData.type === "HOTP" ? "icons/hotp.svg" : "icons/totp.svg")
+                          tint: Color.foreground
+                        }
                       }
 
                       ColumnLayout {
